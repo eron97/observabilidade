@@ -19,19 +19,21 @@ type OpenTel struct {
 	ExporterEndpoint string
 }
 
-func NewOpenTel() *OpenTel {
-	return &OpenTel{}
+func NewOpenTel(serviceName, serviceVersion, exporterEndpoint string) *OpenTel {
+	return &OpenTel{
+		ServiceName:      serviceName,
+		ServiceVersion:   serviceVersion,
+		ExporterEndpoint: exporterEndpoint,
+	}
 }
 
 func (o *OpenTel) GetTracer() trace.Tracer {
-	var logger = log.New(os.Stderr, "zipkin-example", log.Ldate|log.Ltime|log.Llongfile)
+	var logger = log.New(os.Stderr, "zipkin-example ", log.Ldate|log.Ltime|log.Llongfile)
 	exporter, err := zipkin.New(
 		o.ExporterEndpoint,
-		zipkin.WithLogger(logger),
-		zipkin.WithSDKOptions(sdktrace.WithSampler(sdktrace.AlwaysSample())),
 	)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatalf("failed to create Zipkin exporter: %v", err)
 	}
 
 	batcher := sdktrace.NewBatchSpanProcessor(exporter)
@@ -40,8 +42,10 @@ func (o *OpenTel) GetTracer() trace.Tracer {
 		sdktrace.WithSpanProcessor(batcher),
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceNameKey.String("full-cycle-platform"),
+			semconv.ServiceNameKey.String(o.ServiceName),
+			semconv.ServiceVersionKey.String(o.ServiceVersion),
 		)),
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 	)
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
